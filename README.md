@@ -84,7 +84,7 @@ provided, otherwise an `OrchestratorError` is raised.
 - [ ] Implement OpenAI candidate generation and judging
 - [ ] Implement DeepSeek candidate generation and judging
 - [ ] Implement OpenAI / DeepSeek model selection
-- [ ] Add the `_constants` and `_exceptions` modules
+- [ ] Add the `_constants` and `exceptions` modules
 - [ ] Package the project for distribution
 
 ## License

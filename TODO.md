@@ -1,4 +1,3 @@
- - Create shortcuts, default candidates to 1, if candidates is equal to 1 skip the judgement stage and just return the result.
  - Implement Open AI
  - Implement Deepseek
  - Refactor entire repo

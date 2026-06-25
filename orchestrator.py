@@ -1,55 +1,46 @@
 import re
-import _exceptions
-from anthropic import Anthropic
-from openai import OpenAI
+from dataclasses import dataclass, field
 from typing import Optional
 
-class orchestrator:
-    # client options
+from anthropic import Anthropic
+from openai import OpenAI
+
+from exceptions import OrchestratorError
+
+
+@dataclass
+class Orchestrator:
+    """Generate candidate responses from one or more LLM providers and pick a winner.
+
+    At least one provider client (Anthropic, OpenAI, or Deepseek) must be supplied.
+    """
+
+    task_prompt: str
+    judge_prompt: str
     anthropic_client: Optional[Anthropic] = None
     openai_client: Optional[OpenAI] = None
     deepseek_client: Optional[OpenAI] = None
-    candidates: int = 5
+    candidate_number: int = 1
     max_task_tokens: int = 1000
 
-    # constants
-    task_prompt: str
-    judge_prompt: str
+    # Internal state populated during model selection; not constructor arguments.
+    chosen_anthropic_model: Optional[str] = field(default=None, init=False)
+    chosen_openai_model: Optional[str] = field(default=None, init=False)
+    chosen_deepseek_model: Optional[str] = field(default=None, init=False)
 
-    # selected models
-    chosen_anthropic_model: Optional[str] = None
-    chosen_openai_model: Optional[str] = None
-    chosen_deepseek_model: Optional[str] = None
-
-    def __init__(
-    self,
-    task_prompt: str,
-    judge_prompt: str,
-    anthropic_client: Optional[Anthropic] = None,
-    openai_client: Optional[OpenAI] = None,
-    deepseek_client: Optional[OpenAI] = None,
-    candidate_number: Optional[int] = 5,
-    max_task_tokens: Optional[int] = 1000,
-    ):
+    def __post_init__(self) -> None:
         has_atleast_one_client = (
-            anthropic_client is not None or 
-            openai_client is not None or 
-            deepseek_client is not None
-            )
+            self.anthropic_client is not None
+            or self.openai_client is not None
+            or self.deepseek_client is not None
+        )
         if not has_atleast_one_client:
-            raise _exceptions.OrchestratorError(
+            raise OrchestratorError(
                 "At least one client of Anthropic, OpenAI, or Deepseek must be provided."
             )
-        
-        self.task_prompt = task_prompt
-        self.judge_prompt = judge_prompt
-        self.anthropic_client = anthropic_client
-        self.openai_client = openai_client
-        self.deepseek_client = deepseek_client
-        self.candidate_number = candidate_number
-        self.max_task_tokens = max_task_tokens
 
     def run_task(self):
+        """Select models, generate candidates, and return the winning response."""
         # Select the models to use before generating candidates
         self._model_selection()
 
@@ -62,8 +53,11 @@ class orchestrator:
         if self.deepseek_client:
             candidates += self._generate_candidates_deepseek()
 
-        # Judge the candidates
-        winner_candidate = self._judge_candidates(candidates)
+        # Judge the candidates if there are multiple candidates
+        if self.candidate_number > 1:
+            winner_candidate = self._judge_candidates(candidates)
+        else:
+            winner_candidate = candidates[0] if candidates else None
 
         return winner_candidate
     
@@ -102,7 +96,7 @@ class orchestrator:
         if judged_candidates:
             winner_candidate = judged_candidates[0]  # Assuming the first candidate is the best after judging
         else:
-            raise _exceptions.OrchestratorError("No candidates were judged successfully.")
+            raise OrchestratorError("No candidates were judged successfully.")
 
         return winner_candidate
     
@@ -121,11 +115,11 @@ class orchestrator:
         # Logic to select the best model for Anthropic
         available_models = [m.id for m in self.anthropic_client.models.list().data]
         if not available_models:
-            raise _exceptions.OrchestratorError("No available models found for Anthropic.")
+            raise OrchestratorError("No available models found for Anthropic.")
 
         haiku_models = [m for m in available_models if 'haiku' in m.lower()]
         if not haiku_models:
-            raise _exceptions.OrchestratorError("No haiku models found available for Anthropic, unable to analyse the task.")
+            raise OrchestratorError("No haiku models found available for Anthropic, unable to analyse the task.")
         task_analyser_model = haiku_models[0]
         
         analysis = self.anthropic_client.messages.create(
@@ -143,8 +137,7 @@ class orchestrator:
             chosen_model = task_analyser_model
 
         if not chosen_model:
-            raise _exceptions.OrchestratorError("No suitable model was selected for Anthropic.")
-        print(f"Chosen Anthropic model: {chosen_model}")
+            raise OrchestratorError("No suitable model was selected for Anthropic.")
 
         self.chosen_anthropic_model = chosen_model
 
@@ -159,12 +152,12 @@ class orchestrator:
 
     def _judge_candidates_anthropic(self, candidates: list):
         if not candidates:
-            raise _exceptions.OrchestratorError("No candidates were provided to judge.")
+            raise OrchestratorError("No candidates were provided to judge.")
 
         available_models = [m.id for m in self.anthropic_client.models.list().data]
         sonnet_models = [m for m in available_models if 'sonnet' in m.lower()]
         if not sonnet_models:
-            raise _exceptions.OrchestratorError("No sonnet models found available for Anthropic, unable to judge candidates.")
+            raise OrchestratorError("No sonnet models found available for Anthropic, unable to judge candidates.")
         judge_model = sonnet_models[0]
 
         # Number the candidates so the judge can refer to them unambiguously.
@@ -194,7 +187,7 @@ class orchestrator:
                 judged_candidates.append(candidates[idx])
 
         if not judged_candidates:
-            raise _exceptions.OrchestratorError("No candidates were judged successfully by Anthropic.")
+            raise OrchestratorError("No candidates were judged successfully by Anthropic.")
         return judged_candidates
 
     def _judge_candidates_openai(self, candidates: list):
