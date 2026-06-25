@@ -5,7 +5,7 @@ responses to a task from one or more model providers (Anthropic, OpenAI,
 DeepSeek), then uses a "judge" model to adjudicate the candidates and return the
 best one.
 
-The core idea is **generate-then-judge**: by producing multiple candidates and
+The core idea is **analyse-delegate-judge**: by producing multiple candidates and
 scoring them against a judging rubric, you get higher-quality outputs than a
 single one-shot completion.
 
