@@ -1,4 +1,0 @@
- - Implement Open AI
- - Implement Deepseek
- - Refactor entire repo to make it as efficient as possible
- - Create and publish PIP

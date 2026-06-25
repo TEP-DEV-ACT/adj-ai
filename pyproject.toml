@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adj-ai"
+dynamic = ["version"]
+description = "A multi-provider LLM orchestrator using a analyse-delegate-judge strategy."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Thomas Powell", email = "thomaspowelleng@gmail.com" },
+]
+keywords = ["llm", "orchestrator", "anthropic", "openai", "deepseek", "ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "anthropic>=0.30",
+    "openai>=1.0",
+]
+
+[project.optional-dependencies]
+examples = ["python-dotenv>=1.0"]
+
+[project.urls]
+Homepage = "https://github.com/TEP-DEV-ACT/adj-ai"
+Repository = "https://github.com/TEP-DEV-ACT/adj-ai"
+Issues = "https://github.com/TEP-DEV-ACT/adj-ai/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { attr = "adj_ai.__version__" }

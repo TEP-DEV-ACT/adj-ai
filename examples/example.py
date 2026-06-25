@@ -2,7 +2,7 @@ from anthropic import Anthropic
 from openai import OpenAI
 import os
 from dotenv import load_dotenv
-from orchestrator import Orchestrator
+from adj_ai import Orchestrator
 
 load_dotenv()  # Load environment variables from .env file
 anthropic_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))

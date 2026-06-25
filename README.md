@@ -9,9 +9,8 @@ The core idea is **generate-then-judge**: by producing multiple candidates and
 scoring them against a judging rubric, you get higher-quality outputs than a
 single one-shot completion.
 
-> **Status:** Early development. The Anthropic generation/judging path is the
-> most complete; OpenAI and DeepSeek paths are stubbed out and raise
-> `NotImplementedError`.
+> **Status:** Early development. The Anthropic, OpenAI, and DeepSeek
+> generation/judging paths are all implemented.
 
 ## How it works
 
@@ -29,11 +28,11 @@ When multiple clients are configured, judging falls back in priority order:
 
 ## Installation
 
-This project depends on the official provider SDKs:
-
 ```bash
-pip install anthropic openai
+pip install adj-ai
 ```
+
+This pulls in the official provider SDKs (`anthropic`, `openai`) automatically.
 
 > DeepSeek and OpenAI share the `openai` SDK (DeepSeek exposes an
 > OpenAI-compatible API).
@@ -44,19 +43,19 @@ pip install anthropic openai
 from anthropic import Anthropic
 from openai import OpenAI
 
-from orchestrator import orchestrator
+from adj_ai import Orchestrator
 
 anthropic_client = Anthropic(api_key="...")
 openai_client = OpenAI(api_key="...")
 deepseek_client = OpenAI(api_key="...", base_url="https://api.deepseek.com")
 
-orch = orchestrator(
+orch = Orchestrator(
     task_prompt="Write a concise product description for a smart water bottle.",
     judge_prompt="Pick the description that is clearest and most persuasive.",
     anthropic_client=anthropic_client,
     openai_client=openai_client,
     deepseek_client=deepseek_client,
-    candidates=5,
+    candidate_number=5,
     max_task_tokens=1000,
 )
 
@@ -76,17 +75,13 @@ provided, otherwise an `OrchestratorError` is raised.
 | `anthropic_client` | `Anthropic` | —       | Optional Anthropic client.                               |
 | `openai_client`    | `OpenAI`    | —       | Optional OpenAI client.                                  |
 | `deepseek_client`  | `OpenAI`    | —       | Optional DeepSeek (OpenAI-compatible) client.            |
-| `candidates`       | `int`       | `5`     | Number of candidate responses to generate.               |
+| `candidate_number` | `int`       | `1`     | Number of candidate responses to generate.               |
 | `max_task_tokens`  | `int`       | `1000`  | Maximum tokens per generated candidate.                  |
 
-## Roadmap
+## TODO
 
-- [ ] Implement OpenAI candidate generation and judging
-- [ ] Implement DeepSeek candidate generation and judging
-- [ ] Implement OpenAI / DeepSeek model selection
-- [ ] Add the `_constants` and `exceptions` modules
-- [ ] Package the project for distribution
+- [x] Package the project for distribution
 
 ## License
 
-See the repository for license details.
+Released under the [MIT License](LICENSE).

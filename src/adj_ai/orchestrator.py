@@ -5,7 +5,7 @@ from typing import Optional
 from anthropic import Anthropic
 from openai import OpenAI
 
-from exceptions import OrchestratorError
+from .exceptions import OrchestratorError
 
 
 @dataclass
@@ -75,10 +75,30 @@ class Orchestrator:
         return response.content[0].text
     
     def _generate_candidates_openai(self):
-        raise NotImplementedError("OpenAI candidate generation is not implemented yet.")
-    
+        # Use the OpenAI client to generate candidates
+        candidates = [self._get_openai_response(i) for i in range(self.candidate_number)]
+        return candidates
+
+    def _get_openai_response(self, i):
+        response = self.openai_client.chat.completions.create(
+            model=self.chosen_openai_model,
+            messages=[{"role": "user", "content": f"{self.task_prompt}"}],
+            max_tokens=self.max_task_tokens
+        )
+        return response.choices[0].message.content
+
     def _generate_candidates_deepseek(self):
-        raise NotImplementedError("Deepseek candidate generation is not implemented yet.")
+        # Use the Deepseek client to generate candidates
+        candidates = [self._get_deepseek_response(i) for i in range(self.candidate_number)]
+        return candidates
+
+    def _get_deepseek_response(self, i):
+        response = self.deepseek_client.chat.completions.create(
+            model=self.chosen_deepseek_model,
+            messages=[{"role": "user", "content": f"{self.task_prompt}"}],
+            max_tokens=self.max_task_tokens
+        )
+        return response.choices[0].message.content
     
     def _judge_candidates(self, candidates: list):
         # Use the judge prompt to evaluate candidates
@@ -143,12 +163,73 @@ class Orchestrator:
 
     def _model_selection_openai(self):
         # Logic to select the best model for OpenAI
-        available_models = [m for m in self.openai_client.models.list().data]
-        raise NotImplementedError("Model selection logic is not implemented yet.")  
+        available_models = [m.id for m in self.openai_client.models.list().data]
+        if not available_models:
+            raise OrchestratorError("No available models found for OpenAI.")
+
+        mini_models = [m for m in available_models if 'mini' in m.lower()]
+        if not mini_models:
+            raise OrchestratorError("No mini models found available for OpenAI, unable to analyse the task.")
+        task_analyser_model = mini_models[0]
+
+        analysis = self.openai_client.chat.completions.create(
+            model=task_analyser_model,
+            max_tokens=100,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Pick the most appropriate model for the task, balancing performance and cost. "
+                        "Reply with ONLY the exact model id, nothing else.\n"
+                        "Available models:\n" + "\n".join(available_models)
+                    ),
+                },
+                {"role": "user", "content": self.task_prompt},
+            ],
+        )
+        chosen_model = analysis.choices[0].message.content.strip()
+        if chosen_model not in available_models:
+            chosen_model = task_analyser_model
+
+        if not chosen_model:
+            raise OrchestratorError("No suitable model was selected for OpenAI.")
+
+        self.chosen_openai_model = chosen_model
 
     def _model_selection_deepseek(self):
-        available_models = [m for m in self.deepseek_client.models.list().data]
-        raise NotImplementedError("Model selection logic is not implemented yet.")
+        # Logic to select the best model for Deepseek
+        available_models = [m.id for m in self.deepseek_client.models.list().data]
+        if not available_models:
+            raise OrchestratorError("No available models found for Deepseek.")
+
+        chat_models = [m for m in available_models if 'chat' in m.lower()]
+        if not chat_models:
+            raise OrchestratorError("No chat models found available for Deepseek, unable to analyse the task.")
+        task_analyser_model = chat_models[0]
+
+        analysis = self.deepseek_client.chat.completions.create(
+            model=task_analyser_model,
+            max_tokens=100,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Pick the most appropriate model for the task, balancing performance and cost. "
+                        "Reply with ONLY the exact model id, nothing else.\n"
+                        "Available models:\n" + "\n".join(available_models)
+                    ),
+                },
+                {"role": "user", "content": self.task_prompt},
+            ],
+        )
+        chosen_model = analysis.choices[0].message.content.strip()
+        if chosen_model not in available_models:
+            chosen_model = task_analyser_model
+
+        if not chosen_model:
+            raise OrchestratorError("No suitable model was selected for Deepseek.")
+
+        self.chosen_deepseek_model = chosen_model
 
     def _judge_candidates_anthropic(self, candidates: list):
         if not candidates:
@@ -192,8 +273,92 @@ class Orchestrator:
 
     def _judge_candidates_openai(self, candidates: list):
         # Logic to judge candidates using OpenAI
-        raise NotImplementedError("Judging logic for OpenAI is not implemented yet.")
+        if not candidates:
+            raise OrchestratorError("No candidates were provided to judge.")
+
+        available_models = [m.id for m in self.openai_client.models.list().data]
+        judge_models = [m for m in available_models if 'gpt-4' in m.lower() and 'mini' not in m.lower()]
+        if not judge_models:
+            raise OrchestratorError("No gpt-4 models found available for OpenAI, unable to judge candidates.")
+        judge_model = judge_models[0]
+
+        # Number the candidates so the judge can refer to them unambiguously.
+        numbered = "\n\n".join(f"[{i}]\n{c}" for i, c in enumerate(candidates))
+
+        analysis = self.openai_client.chat.completions.create(
+            model=judge_model,
+            max_tokens=100,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are judging candidate responses against the judge prompt. "
+                        "Each candidate is labelled with an index like [0], [1], etc. "
+                        "Reply with ONLY the candidate indices, best first, as a comma-separated "
+                        "list (e.g. '2,0,1'). Do not include any other text.\n\n"
+                        "Candidates:\n" + numbered
+                    ),
+                },
+                {"role": "user", "content": self.judge_prompt},
+            ],
+        )
+
+        # Parse the indices from the response and map them back to candidates.
+        ranking = re.findall(r"\d+", analysis.choices[0].message.content)
+        judged_candidates = []
+        seen = set()
+        for token in ranking:
+            idx = int(token)
+            if idx not in seen and 0 <= idx < len(candidates):
+                seen.add(idx)
+                judged_candidates.append(candidates[idx])
+
+        if not judged_candidates:
+            raise OrchestratorError("No candidates were judged successfully by OpenAI.")
+        return judged_candidates
 
     def _judge_candidates_deepseek(self, candidates: list):
         # Logic to judge candidates using Deepseek
-        raise NotImplementedError("Judging logic for Deepseek is not implemented yet.") 
+        if not candidates:
+            raise OrchestratorError("No candidates were provided to judge.")
+
+        available_models = [m.id for m in self.deepseek_client.models.list().data]
+        reasoner_models = [m for m in available_models if 'reasoner' in m.lower()]
+        if not reasoner_models:
+            raise OrchestratorError("No reasoner models found available for Deepseek, unable to judge candidates.")
+        judge_model = reasoner_models[0]
+
+        # Number the candidates so the judge can refer to them unambiguously.
+        numbered = "\n\n".join(f"[{i}]\n{c}" for i, c in enumerate(candidates))
+
+        analysis = self.deepseek_client.chat.completions.create(
+            model=judge_model,
+            max_tokens=100,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are judging candidate responses against the judge prompt. "
+                        "Each candidate is labelled with an index like [0], [1], etc. "
+                        "Reply with ONLY the candidate indices, best first, as a comma-separated "
+                        "list (e.g. '2,0,1'). Do not include any other text.\n\n"
+                        "Candidates:\n" + numbered
+                    ),
+                },
+                {"role": "user", "content": self.judge_prompt},
+            ],
+        )
+
+        # Parse the indices from the response and map them back to candidates.
+        ranking = re.findall(r"\d+", analysis.choices[0].message.content)
+        judged_candidates = []
+        seen = set()
+        for token in ranking:
+            idx = int(token)
+            if idx not in seen and 0 <= idx < len(candidates):
+                seen.add(idx)
+                judged_candidates.append(candidates[idx])
+
+        if not judged_candidates:
+            raise OrchestratorError("No candidates were judged successfully by Deepseek.")
+        return judged_candidates

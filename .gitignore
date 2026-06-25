@@ -1,4 +1,17 @@
+# Environment
+.env
 *.env
-__pycache__/exceptions.cpython-312.pyc
-__pycache__/orchestrator.cpython-312.pyc
-__pycache__/orchestrator.cpython-312.pyc
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Build artifacts
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
