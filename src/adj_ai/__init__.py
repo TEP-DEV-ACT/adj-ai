@@ -8,6 +8,6 @@ rank them and return the best one.
 from .exceptions import OrchestratorError
 from .orchestrator import Orchestrator
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 __all__ = ["Orchestrator", "OrchestratorError", "__version__"]
