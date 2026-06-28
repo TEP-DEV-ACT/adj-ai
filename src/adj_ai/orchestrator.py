@@ -163,9 +163,14 @@ class Orchestrator:
 
     def _model_selection_openai(self):
         # Logic to select the best model for OpenAI
-        available_models = [m.id for m in self.openai_client.models.list().data]
-        if not available_models:
+        all_models = [m.id for m in self.openai_client.models.list().data]
+        if not all_models:
             raise OrchestratorError("No available models found for OpenAI.")
+
+        # Restrict to chat-compatible models only (gpt-* and o-series)
+        available_models = [m for m in all_models if m.startswith('gpt-') or m.startswith('o')]
+        if not available_models:
+            available_models = all_models
 
         mini_models = [m for m in available_models if 'mini' in m.lower()]
         if not mini_models:
@@ -202,10 +207,8 @@ class Orchestrator:
         if not available_models:
             raise OrchestratorError("No available models found for Deepseek.")
 
-        chat_models = [m for m in available_models if 'chat' in m.lower()]
-        if not chat_models:
-            raise OrchestratorError("No chat models found available for Deepseek, unable to analyse the task.")
-        task_analyser_model = chat_models[0]
+        chat_models = [m for m in available_models if 'chat' in m.lower() or 'flash' in m.lower()]
+        task_analyser_model = chat_models[0] if chat_models else available_models[0]
 
         analysis = self.deepseek_client.chat.completions.create(
             model=task_analyser_model,
@@ -323,17 +326,15 @@ class Orchestrator:
             raise OrchestratorError("No candidates were provided to judge.")
 
         available_models = [m.id for m in self.deepseek_client.models.list().data]
-        reasoner_models = [m for m in available_models if 'reasoner' in m.lower()]
-        if not reasoner_models:
-            raise OrchestratorError("No reasoner models found available for Deepseek, unable to judge candidates.")
-        judge_model = reasoner_models[0]
+        reasoner_models = [m for m in available_models if 'reasoner' in m.lower() or 'pro' in m.lower()]
+        judge_model = reasoner_models[0] if reasoner_models else available_models[-1]
 
         # Number the candidates so the judge can refer to them unambiguously.
         numbered = "\n\n".join(f"[{i}]\n{c}" for i, c in enumerate(candidates))
 
         analysis = self.deepseek_client.chat.completions.create(
             model=judge_model,
-            max_tokens=100,
+            max_tokens=1024,
             messages=[
                 {
                     "role": "system",

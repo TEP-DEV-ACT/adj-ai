@@ -25,12 +25,13 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "anthropic>=0.30",
+    "anthropic>=0.112.0",
     "openai>=1.0",
 ]
 
 [project.optional-dependencies]
 examples = ["python-dotenv>=1.0"]
+dev = ["pytest>=8.0", "python-dotenv>=1.0"]
 
 [project.urls]
 Homepage = "https://github.com/TEP-DEV-ACT/adj-ai"
@@ -42,3 +43,9 @@ where = ["src"]
 
 [tool.setuptools.dynamic]
 version = { attr = "adj_ai.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-v --tb=short"
+markers = ["integration: marks tests that make real API calls"]

@@ -80,8 +80,6 @@ provided, otherwise an `OrchestratorError` is raised.
 
 ## TODO
 
-- [x] Package the project for distribution
-
 ## License
 
 Released under the [MIT License](LICENSE).
