@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 from .exceptions import OrchestratorError
@@ -42,17 +43,22 @@ class Provider:
  
     def complete(self, model: str, user: str, *, system: Optional[str] = None, max_tokens: int = 1000) -> str:
         """Dispatch on `provider_type` to speak whichever API shape this provider uses."""
-        if self.provider_type is ProviderType.ANTHROPIC:
-            kwargs = {"model": model, "messages": [{"role": "user", "content": user}], "max_tokens": max_tokens}
-            if system:
-                kwargs["system"] = system
-            response = self.client.messages.create(**kwargs)
-            return response.content[0].text
- 
-        # OPENAI_STYLE: OpenAI and Deepseek both speak chat.completions
-        messages = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": user}]
-        response = self.client.chat.completions.create(model=model, messages=messages, max_tokens=max_tokens)
-        return response.choices[0].message.content
+        match self.provider_type:
+            case ProviderType.ANTHROPIC:
+                kwargs = {"model": model, "messages": [{"role": "user", "content": user}], "max_tokens": max_tokens}
+                if system:
+                    kwargs["system"] = system
+                response = self.client.messages.create(**kwargs)
+                return response.content[0].text
+
+            case ProviderType.OPENAI_STYLE:
+                # OpenAI and Deepseek both speak chat.completions
+                messages = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": user}]
+                response = self.client.chat.completions.create(model=model, messages=messages, max_tokens=max_tokens)
+                return response.choices[0].message.content
+
+            case _:
+                raise OrchestratorError(f"Unsupported provider type: {self.provider_type}")
  
     def select_model(self, task_prompt: str) -> str:
         all_models = self.list_models()
